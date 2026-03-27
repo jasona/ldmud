@@ -1,0 +1,41 @@
+SYNOPSIS
+        #include <websocket.h>
+
+        void websocket_send(string|bytes message, int opcode)
+
+DESCRIPTION
+        Send a WebSocket frame to the current interactive object.
+
+        <message> is the data to send. For text frames it should be a
+        string (sent as UTF-8); for binary frames it should be a bytes
+        value.
+
+        <opcode> specifies the frame type:
+          WS_TEXT   (1): Text frame. <message> must be a string.
+          WS_BINARY (2): Binary frame. <message> must be a bytes value.
+
+        If <opcode> is 0 (the default), the type is determined
+        automatically: strings are sent as text frames, bytes values
+        as binary frames.
+
+        The current object must be an interactive object with an active
+        WebSocket connection (websocket_query_state() == WS_ACTIVE),
+        otherwise an error is raised.
+
+EXAMPLES
+        // Send a text message
+        websocket_send("Hello, WebSocket client!\n");
+
+        // Send a JSON message
+        websocket_send(json_serialize(([ "type": "chat",
+                                         "msg": "Hello!" ])));
+
+        // Send binary data
+        websocket_send(to_bytes(data), WS_BINARY);
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        websocket_init_connection(E), websocket_close(E),
+        websocket_query_state(E), websocket(C)

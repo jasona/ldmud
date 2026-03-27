@@ -2102,6 +2102,8 @@ name_to_hook(char *name)
         return H_REGEXP_PACKAGE;
     if ( !strcmp(name, "MSG_DISCARDED") )
         return H_MSG_DISCARDED;
+    if ( !strcmp(name, "WEBSOCKET") )
+        return H_WEBSOCKET;
     return -1;
 }
 

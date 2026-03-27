@@ -19,10 +19,19 @@ DESCRIPTION
         happen until the TLS handshake is complete. If the master set
         a TLS callback, that will be executed in place of logon().
 
+        If the connection is auto-detected as a WebSocket connection
+        (client sends an HTTP GET request), the driver will handle
+        the WebSocket handshake transparently. After the handshake
+        completes, text frames are delivered as normal commands. The
+        logon() function does not need to distinguish between WebSocket
+        and telnet connections unless the mudlib wants to use
+        WebSocket-specific features via websocket_query_state().
+
 HISTORY
         LDMud 3.2.10 added the extended meaning for net_connect().
         LDMud 3.2.13/3.3.713 streamlined the handling of secure connections
         during logon.
 
 SEE ALSO
-        connect(M), net_connect(E), exec(E), tls_init_connection(E)
+        connect(M), net_connect(E), exec(E), tls_init_connection(E),
+        websocket_init_connection(E), websocket_query_state(E)

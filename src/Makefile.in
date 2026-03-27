@@ -103,6 +103,7 @@ SRC = access_check.c actions.c applied_decl.c array.c arraylist.c \
       parser.c parse.c pkg-iksemel.c pkg-xml2.c pkg-idna.c \
       pkg-mccp.c pkg-mysql.c pkg-gcrypt.c pkg-json.c pkg-python.c \
       pkg-pgsql.c pkg-sqlite.c pkg-tls.c pkg-openssl.c pkg-gnutls.c \
+      pkg-websocket.c \
       port.c ptrtable.c \
       random.c regexp.c sha1.c simulate.c simul_efun.c stdstrings.c \
       stdstructs.c strfuns.c structs.c sprintf.c swap.c types.c \
@@ -116,6 +117,7 @@ OBJ = access_check.o actions.o applied_decl.o array.o arraylist.o \
       parser.o parse.o pkg-iksemel.o pkg-xml2.o pkg-idna.o \
       pkg-mccp.o pkg-mysql.o pkg-gcrypt.o pkg-json.o pkg-python.o \
       pkg-pgsql.o pkg-sqlite.o pkg-tls.o pkg-openssl.o pkg-gnutls.o \
+      pkg-websocket.o \
       port.o ptrtable.o \
       random.o regexp.o sha1.o simulate.o simul_efun.o stdstrings.o \
       stdstructs.o strfuns.o structs.o sprintf.o swap.o types.o \

@@ -226,6 +226,7 @@ short hook_type_map[NUM_DRIVER_HOOKS] =
     H_PRINT_PROMPT:             SH(T_CLOSURE) SH(T_STRING), \
     H_REGEXP_PACKAGE:                                       SH(T_NUMBER), \
     H_MSG_DISCARDED:            SH(T_CLOSURE) SH(T_STRING), \
+    H_WEBSOCKET:                SH(T_CLOSURE), \
 
 #undef SH
 

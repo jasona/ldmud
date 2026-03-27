@@ -1,0 +1,33 @@
+SYNOPSIS
+        #include <websocket.h>
+
+        int websocket_query_state(object ob)
+
+DESCRIPTION
+        Returns the WebSocket connection state of the interactive
+        object <ob> (default: this_object()).
+
+        Possible return values (defined in <websocket.h>):
+
+          WS_INACTIVE    (0): Not a WebSocket connection (normal telnet).
+          WS_HANDSHAKING (1): WebSocket handshake is in progress.
+          WS_ACTIVE      (2): WebSocket connection is active.
+          WS_CLOSING     (3): Close handshake is in progress.
+
+        If <ob> is not interactive, WS_INACTIVE is returned.
+
+EXAMPLES
+        #include <websocket.h>
+
+        // Check if the current player uses WebSocket
+        if (websocket_query_state() == WS_ACTIVE)
+            tell_object(this_player(), "You are connected via WebSocket.\n");
+        else
+            tell_object(this_player(), "You are connected via telnet.\n");
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        websocket_init_connection(E), websocket_send(E),
+        websocket_close(E), websocket(C)

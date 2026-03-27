@@ -65,6 +65,14 @@ USAGE
         encounter the error message `SSL3_GET_RECORD: wrong version number'
         you're probably writing to the connection while you should not.
 
+        WebSocket Secure (WSS):
+
+            If the driver is compiled with WebSocket support, TLS and
+            WebSocket can be composed to provide secure WebSocket
+            connections. Establish TLS first, then the WebSocket
+            protocol operates over the encrypted connection. See
+            websocket(C) for details.
+
 BUG
         This manpage might be not quite up to date with the implementation.
 
@@ -72,4 +80,4 @@ HISTORY
         Introduced in LDMud 3.3.474 and following, backported to 3.2.11.
 
 SEE ALSO
-        tls_* efuns
+        tls_* efuns, websocket(C)

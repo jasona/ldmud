@@ -12,6 +12,7 @@
 #include "simulate.h"   /* callback_t for TLS */
 #include "svalue.h"
 #include "pkg-tls.h"
+#include "pkg-websocket.h"
 
 /* TODO: Make the following a separate "my-socket.h" include, also
  * TODO:: to be used in access_check.h instead of comm.h.
@@ -120,6 +121,9 @@ typedef struct in_addr in4or6_addr;
 enum write_buffer_flags
 {
     WB_NONDISCARDABLE = 0x0001, /* This message must be sent. */
+#ifdef USE_WEBSOCKETS
+    WB_WEBSOCKET_RAW  = 0x0002, /* Data is already WebSocket-framed. */
+#endif
 };
 
 typedef uint32 write_buffer_flag_t;
@@ -323,6 +327,11 @@ struct interactive_s {
 #     define TLS_HANDSHAKING  1  /* TLS is being negotiated */
 #     define TLS_ACTIVE       2  /* Session is secure */
     callback_t            *tls_cb;
+#endif
+
+#ifdef USE_WEBSOCKETS
+    int                    ws_status;  /* WS_INACTIVE..WS_CLOSING */
+    struct ws_data_s       ws_data;    /* Per-connection WebSocket state */
 #endif
 };
 

@@ -1,0 +1,96 @@
+CONCEPT
+        websocket - The WebSocket Protocol (RFC 6455)
+
+DESCRIPTION
+        WebSocket is a protocol providing full-duplex communication channels
+        over a single TCP connection. It is designed to be implemented in
+        web browsers and web servers, but can be used by any client or
+        server application.
+
+        By enabling WebSocket support during compilation of the driver,
+        web-based clients can connect directly to the mud without requiring
+        an external proxy. WebSocket and telnet connections coexist on the
+        same ports and in the same game simultaneously.
+
+        The driver implements the WebSocket protocol as defined in RFC 6455.
+        No external libraries are required.
+
+        If the driver is compiled with WebSocket support there is a define
+        __WEBSOCKETS__.
+
+USAGE
+        To use WebSocket support, configure your driver with
+        enable_use_websockets=yes in your settings file.
+
+        After starting the driver you have four new efuns:
+        websocket_init_connection(), websocket_send(), websocket_close(),
+        and websocket_query_state().
+
+        There are two ways to establish a WebSocket connection:
+
+        1) Auto-detection on any port
+
+            When a new connection's first bytes match an HTTP GET request,
+            the driver automatically enters the WebSocket handshake instead
+            of telnet negotiation. This allows a single port to serve both
+            telnet and WebSocket clients transparently.
+
+            Once the WebSocket handshake completes, text frames are
+            delivered as normal LPC commands (through catch_tell/input_to),
+            and the connection behaves like any other interactive connection.
+            The mudlib does not need to be aware of the transport protocol
+            unless it wants to use WebSocket-specific features.
+
+            To detect if a player is using WebSocket:
+
+                #include <websocket.h>
+
+                if (websocket_query_state(this_player()) == WS_ACTIVE)
+                    // WebSocket client
+                else
+                    // telnet client
+
+        2) Efun-initiated via websocket_init_connection()
+
+            An existing interactive connection can be switched to WebSocket
+            mode by calling websocket_init_connection(). This places the
+            connection into a handshake state where it expects an HTTP
+            upgrade request from the client. An optional completion callback
+            can be specified.
+
+        WebSocket Secure (WSS):
+
+            To use secure WebSocket connections, establish TLS first using
+            tls_init_connection(), then the WebSocket protocol operates
+            over the encrypted TLS connection. The data flow is:
+
+                Network <-> TLS <-> WebSocket <-> Command Processing
+
+        Binary Data:
+
+            Binary WebSocket frames are dispatched through the H_WEBSOCKET
+            driver hook rather than normal command processing. This allows
+            the mudlib to handle structured binary protocols (e.g., JSON-
+            based game protocols, binary map data) separately from text
+            commands.
+
+            Use websocket_send() with the WS_BINARY opcode to send binary
+            data to WebSocket clients:
+
+                #include <websocket.h>
+
+                websocket_send(data, WS_BINARY);
+
+        Control Frames:
+
+            Ping and Pong frames are handled automatically by the driver.
+            The close handshake is also handled automatically, but can be
+            initiated from LPC using websocket_close().
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        websocket_init_connection(E), websocket_send(E),
+        websocket_close(E), websocket_query_state(E),
+        websocket(H), tls(C)

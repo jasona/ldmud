@@ -1,0 +1,51 @@
+SYNOPSIS
+        #include <websocket.h>
+
+        int websocket_init_connection(object ob)
+        int websocket_init_connection(object ob, string fun,
+                                      string|object fob, mixed extra...)
+        int websocket_init_connection(object ob, closure fun, mixed extra...)
+
+DESCRIPTION
+        websocket_init_connection() initiates a WebSocket handshake on
+        the interactive object <ob> (or this_object() if <ob> is not
+        given).
+
+        The connection enters the WS_HANDSHAKING state and waits for
+        the client to send an HTTP upgrade request. Once the handshake
+        completes successfully, the connection transitions to WS_ACTIVE
+        and all subsequent I/O is WebSocket-framed.
+
+        Telnet negotiation is disabled for WebSocket connections.
+
+        Result:
+          0: Handshake is in progress (waiting for client data).
+         -1: Error (object not interactive, or already in WebSocket mode).
+
+        If the callback <fun>/<fun>:<fob> is specified, it will be
+        called once the WebSocket handshake completes. The first argument
+        will be the result (0 on success), followed by the interactive
+        object <ob> and any <extra> arguments.
+
+        In most cases, auto-detection is preferred over calling this efun
+        directly. The driver automatically detects WebSocket connections
+        by inspecting the first bytes of incoming data for an HTTP GET
+        request. See the websocket(C) concept page for details.
+
+NOTES
+        During the WebSocket handshake, nothing else should be sent to
+        the client. The handshake is an HTTP request/response exchange,
+        and any data sent before the 101 response would confuse the
+        client.
+
+        For secure WebSocket (WSS) connections, call
+        tls_init_connection() first to establish TLS, then use
+        websocket_init_connection() or rely on auto-detection.
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        websocket_send(E), websocket_close(E), websocket_query_state(E),
+        websocket(C), websocket(H), tls_init_connection(E),
+        connect(M), logon(A)

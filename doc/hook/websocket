@@ -1,0 +1,57 @@
+SYNOPSIS
+        #include <sys/driver_hooks.h>
+
+        set_driver_hook(H_WEBSOCKET, value)
+
+        <value> being:
+
+          void <closure>(int opcode, bytes data, object player)
+
+DESCRIPTION
+        Optional hook called when a binary WebSocket frame is received
+        from a player.
+
+        <opcode> is the WebSocket frame opcode (WS_BINARY, value 2).
+
+        <data> is a bytes value containing the binary payload.
+
+        <player> is the interactive object that sent the data.
+
+        If the hook is not set, binary WebSocket frames are silently
+        discarded.
+
+        Text WebSocket frames (opcode WS_TEXT) are NOT dispatched
+        through this hook. They are delivered as normal commands through
+        the standard command processing path (input_to callbacks,
+        catch_tell, etc.), exactly like telnet input. This means that
+        existing mudlib code works with WebSocket text clients without
+        any changes.
+
+EXAMPLES
+        // In the master object:
+        #include <sys/driver_hooks.h>
+        #include <websocket.h>
+
+        void create()
+        {
+            // ...
+            set_driver_hook(H_WEBSOCKET,
+                lambda(({'opcode, 'data, 'player}),
+                    ({#'call_other, 'player,
+                      "receive_websocket_binary", 'opcode, 'data})
+                )
+            );
+        }
+
+        // In the player object:
+        void receive_websocket_binary(int opcode, bytes data)
+        {
+            // Handle binary protocol data (e.g., map updates, game state)
+        }
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        hooks(C), websocket(C), websocket_send(E),
+        websocket_init_connection(E)

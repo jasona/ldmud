@@ -1,0 +1,38 @@
+SYNOPSIS
+        #include <websocket.h>
+
+        void websocket_close(int code, string reason)
+
+DESCRIPTION
+        Initiate the WebSocket close handshake on the current interactive
+        object.
+
+        <code> is an optional close status code (default: WS_CLOSE_NORMAL,
+        1000). Standard status codes are defined in <websocket.h>:
+
+          WS_CLOSE_NORMAL         (1000): Normal closure.
+          WS_CLOSE_GOING_AWAY     (1001): Endpoint going away.
+          WS_CLOSE_PROTOCOL_ERROR (1002): Protocol error.
+          WS_CLOSE_UNSUPPORTED    (1003): Unsupported data type.
+          WS_CLOSE_INVALID_DATA   (1007): Invalid payload data.
+          WS_CLOSE_POLICY         (1008): Policy violation.
+          WS_CLOSE_TOO_BIG        (1009): Message too big.
+          WS_CLOSE_MANDATORY_EXT  (1010): Mandatory extension missing.
+          WS_CLOSE_INTERNAL_ERROR (1011): Internal server error.
+
+        <reason> is an optional UTF-8 reason string (max 123 bytes).
+
+        After sending the close frame, the connection enters the
+        WS_CLOSING state. The driver will close the TCP connection
+        after the close handshake completes (both sides have sent
+        close frames).
+
+        The current object must be an interactive object with an active
+        or closing WebSocket connection, otherwise an error is raised.
+
+HISTORY
+        Introduced in LDMud 3.6.9.
+
+SEE ALSO
+        websocket_init_connection(E), websocket_send(E),
+        websocket_query_state(E), websocket(C)

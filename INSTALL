@@ -33,6 +33,8 @@ Prerequisites
   - json-c (libjson0) for JSON support
   - libpython3 for the Python package (Python 3.7 or later recommended)
 
+  WebSocket support (RFC 6455) requires no external libraries.
+
 
 Unix or Unix-like system
 ------------------------

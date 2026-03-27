@@ -1533,6 +1533,62 @@ comm_socket_write (char *msg, size_t size, interactive_t *ip, write_buffer_flag_
     if (size == 0)
         return MY_TRUE;
 
+#ifdef USE_WEBSOCKETS
+    /* If this is an active WebSocket connection and the data is not
+     * already framed (i.e., it's normal output), wrap it in a WebSocket
+     * frame before sending.
+     */
+    if (ip->ws_status == WS_ACTIVE && !(flags & WB_WEBSOCKET_RAW))
+    {
+        unsigned char opcode = ip->ws_data.text_mode ? WS_OP_TEXT
+                                                     : WS_OP_BINARY;
+        unsigned char header[14];
+        size_t hlen = 0;
+
+        header[hlen++] = WS_FIN_BIT | (opcode & WS_OPCODE_MASK);
+        if (size <= 125)
+        {
+            header[hlen++] = (unsigned char)size;
+        }
+        else if (size <= 65535)
+        {
+            header[hlen++] = 126;
+            header[hlen++] = (unsigned char)((size >> 8) & 0xFF);
+            header[hlen++] = (unsigned char)(size & 0xFF);
+        }
+        else
+        {
+            header[hlen++] = 127;
+            header[hlen++] = 0;
+            header[hlen++] = 0;
+            header[hlen++] = 0;
+            header[hlen++] = 0;
+            header[hlen++] = (unsigned char)((size >> 24) & 0xFF);
+            header[hlen++] = (unsigned char)((size >> 16) & 0xFF);
+            header[hlen++] = (unsigned char)((size >> 8) & 0xFF);
+            header[hlen++] = (unsigned char)(size & 0xFF);
+        }
+
+        /* Build a single buffer with header + payload to avoid
+         * splitting a frame across write buffer entries.
+         */
+        {
+            char *framed = xalloc(hlen + size);
+            Bool ret;
+
+            if (!framed)
+                return MY_FALSE;
+            memcpy(framed, header, hlen);
+            memcpy(framed + hlen, msg, size);
+
+            ret = comm_socket_write(framed, hlen + size, ip,
+                                    flags | WB_WEBSOCKET_RAW);
+            xfree(framed);
+            return ret;
+        }
+    }
+#endif /* USE_WEBSOCKETS */
+
 #ifdef USE_MCCP
     /* We cannot discard already compressed packets,
      * because the zlib will generate a checksum
@@ -2330,7 +2386,10 @@ get_message (char *buff, size_t *bufflength)
                 /* Process telnet negotiations up to the point where the
                  * next input is ready, if possible.
                  */
-                telnet_neg(ip);
+#ifdef USE_WEBSOCKETS
+                if (ip->ws_status == WS_INACTIVE)
+#endif
+                    telnet_neg(ip);
 
                 if (ip->tn_state == TS_READY || ip->tn_state == TS_CHAR_READY)
                 {
@@ -2836,6 +2895,9 @@ get_message (char *buff, size_t *bufflength)
                 continue;
             }
 #endif
+            /* WebSocket handshake/framing is handled after the socket read,
+             * in the same location as telnet_neg().
+             */
 
             if (FD_ISSET(ip->socket, &writefds))
             {
@@ -2947,9 +3009,58 @@ get_message (char *buff, size_t *bufflength)
                  * outportal instead of returning it.
                  */
 
-                /* Process telnet negotiations up to the point where the
-                 * next input is ready, if possible.
-                 */
+                /* Process telnet negotiations or WebSocket frames. */
+#ifdef USE_WEBSOCKETS
+                if (ip->ws_status == WS_HANDSHAKING)
+                {
+                    /* Accumulating the HTTP upgrade request. */
+                    int ws_rc = ws_continue_handshake(ip);
+                    if (ws_rc < 0)
+                    {
+                        remove_interactive(ip->ob, MY_FALSE);
+                        continue;
+                    }
+                    /* ws_rc == 0: still handshaking, ws_rc == 1: now active */
+                    continue;
+                }
+                else if (ip->ws_status == WS_ACTIVE
+                      || ip->ws_status == WS_CLOSING)
+                {
+                    int ws_rc = ws_deframe_input(ip);
+                    if (ws_rc < 0)
+                    {
+                        remove_interactive(ip->ob, MY_FALSE);
+                        continue;
+                    }
+                    if (ws_rc == 0 || ws_rc == 2)
+                        continue;
+                    /* ws_rc == 1: text message in ip->command[].
+                     * Set tn_state to TS_READY so the command scan
+                     * picks it up.
+                     */
+                    ip->tn_state = TS_READY;
+                }
+                else if (ip->ws_status == WS_INACTIVE && ip->text_end >= 4
+                      && ip->text[0] == 'G' && ip->text[1] == 'E'
+                      && ip->text[2] == 'T' && ip->text[3] == ' ')
+                {
+                    /* Auto-detect: first bytes look like HTTP GET.
+                     * Switch to WebSocket handshake mode.
+                     */
+                    ip->ws_status = WS_HANDSHAKING;
+                    ip->tn_enabled = MY_FALSE;
+                    {
+                        int ws_rc = ws_continue_handshake(ip);
+                        if (ws_rc < 0)
+                        {
+                            remove_interactive(ip->ob, MY_FALSE);
+                            continue;
+                        }
+                    }
+                    continue;
+                }
+                else
+#endif /* USE_WEBSOCKETS */
                 telnet_neg(ip);
             } /* if (cmdgiver socket ready) */
 
@@ -3329,6 +3440,11 @@ remove_interactive (object_t *ob, Bool force)
         /* If there is anything left, try now. */
         comm_write_pending(interactive);
 
+#ifdef USE_WEBSOCKETS
+        if (interactive->ws_status == WS_ACTIVE && !force)
+            ws_send_close(interactive, WS_CLOSE_GOING_AWAY, "Going away");
+        ws_cleanup(interactive);
+#endif
 #ifdef USE_TLS
         tls_deinit_connection(interactive);
 #endif
@@ -3667,6 +3783,10 @@ new_player ( object_t *ob, SOCKET_T new_socket
     new_interactive->tls_status = TLS_INACTIVE;
     new_interactive->tls_session = NULL;
     new_interactive->tls_cb = NULL;
+#endif
+#ifdef USE_WEBSOCKETS
+    new_interactive->ws_status = WS_INACTIVE;
+    ws_init_data(&new_interactive->ws_data);
 #endif
     new_interactive->input_handler = NULL;
     put_number(&new_interactive->prompt, 0);

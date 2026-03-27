@@ -4,6 +4,25 @@ the host system.
 
 For a detailed list of all changes see the file CHANGELOG.
 
+UNRELEASED -- 3.6.9
+    - Networking:
+       + Added native WebSocket support (RFC 6455). WebSocket and telnet
+         connections coexist on the same ports. Auto-detects WebSocket
+         clients by HTTP GET prefix. No external library dependencies.
+         Composes with TLS for secure WebSocket (WSS) connections.
+
+    - New Efuns:
+       + websocket_init_connection() initiates WebSocket handshake on an
+         interactive connection, with optional completion callback.
+       + websocket_send() sends text or binary WebSocket frames.
+       + websocket_close() initiates the WebSocket close handshake.
+       + websocket_query_state() returns the WebSocket state of a
+         connection (WS_INACTIVE, WS_HANDSHAKING, WS_ACTIVE, WS_CLOSING).
+
+    - New Driver Hooks:
+       + H_WEBSOCKET is called when a binary WebSocket frame is received.
+         Text frames are delivered as normal commands.
+
 07-Jul-2025 (LDMud Team) -- 3.6.8
     - Fixed Crashes:
        + Fixed a crash on __INT_MIN__ % -1.

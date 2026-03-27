@@ -17,10 +17,19 @@ DESCRIPTION
         the driver will delay the call to logon() until the handshake either
         succeeds or fails.
 
+        If the driver is compiled with WebSocket support, incoming
+        connections that begin with an HTTP GET request are
+        automatically handled as WebSocket connections. The handshake
+        occurs transparently before the first command is processed.
+        The mudlib can call websocket_init_connection() from connect()
+        to explicitly initiate a WebSocket handshake, or rely on
+        auto-detection.
+
 HISTORY
         LDMud 3.2.13/3.3.713 streamlined the handling of secure connections
         during logon.
 
 SEE ALSO
         logon(A), disconnect(M), interactive(E), exec(E),
-        net_connect(E), tls_init_connection(E)
+        net_connect(E), tls_init_connection(E),
+        websocket_init_connection(E), websocket(C)

@@ -399,6 +399,11 @@ enable_use_sqlite=no
 
 enable_use_mccp=no
 
+# Enable support for WebSocket connections (RFC 6455).
+# No external library dependencies required.
+
+enable_use_websockets=no
+
 # Enable support for TLS (Transport Layer Security).
 #
 #  'no': TLS support is not compiled it

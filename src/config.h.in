@@ -342,6 +342,10 @@
  */
 @cdef_use_mccp@ USE_MCCP
 
+/* Define this if you want WebSocket support (RFC 6455).
+ */
+@cdef_use_websockets@ USE_WEBSOCKETS
+
 /* Define this if you want TLS (Transport Layer Security) over Telnet.
  */
 @cdef_use_tls@ USE_TLS

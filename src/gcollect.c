@@ -2361,6 +2361,13 @@ garbage_collection(void)
             clear_ref_in_callback(all_players[i]->tls_cb);
         }
 #endif
+#ifdef USE_WEBSOCKETS
+        if (all_players[i]->ws_data.cb != NULL)
+        {
+            clear_memory_reference(all_players[i]->ws_data.cb);
+            clear_ref_in_callback(all_players[i]->ws_data.cb);
+        }
+#endif
         clear_ref_in_vector(&all_players[i]->prompt, 1);
 
         /* snoop_by and modify_command are known to be NULL or non-destructed
@@ -2569,6 +2576,13 @@ garbage_collection(void)
         {
             note_ref(all_players[i]->tls_cb);
             count_ref_in_callback(all_players[i]->tls_cb);
+        }
+#endif
+#ifdef USE_WEBSOCKETS
+        if (all_players[i]->ws_data.cb != NULL)
+        {
+            note_ref(all_players[i]->ws_data.cb);
+            count_ref_in_callback(all_players[i]->ws_data.cb);
         }
 #endif
 
