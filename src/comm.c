@@ -2903,7 +2903,27 @@ get_message (char *buff, size_t *bufflength)
              */
             if (ip->tls_status == TLS_HANDSHAKING)
             {
-                tls_continue_handshake(ip);
+                int tls_ret = tls_continue_handshake(ip);
+#ifdef USE_WEBSOCKETS
+                /* When TLS completes and we're in WS_PENDING, the
+                 * connection is now TLS-secured but we still need to
+                 * detect the protocol (WebSocket vs telnet) from the
+                 * first decrypted bytes.  Don't call logon yet.
+                 */
+                if (ip->ws_status == WS_PENDING)
+                {
+                    if (tls_ret < 0)
+                    {
+                        /* TLS handshake failed — disconnect. */
+                        remove_interactive(ip->ob, MY_FALSE);
+                    }
+                    /* tls_ret > 0: TLS active.  Next cycle reads
+                     * decrypted data for protocol detection.
+                     * tls_ret == 0: still handshaking.
+                     */
+                    continue;
+                }
+#endif /* USE_WEBSOCKETS */
                 continue;
             }
 #endif
@@ -2970,6 +2990,17 @@ get_message (char *buff, size_t *bufflength)
 #ifdef USE_TLS
                 if (ip->tls_status != TLS_INACTIVE)
                     l = tls_read(ip, ip->text + ip->text_end, (size_t)l);
+                else
+#endif
+#ifdef USE_WEBSOCKETS
+                if (ip->ws_status == WS_PENDING)
+                {
+                    /* Peek at the first bytes without consuming them.
+                     * If TLS is detected (0x16), OpenSSL needs to read
+                     * these bytes from the socket itself.
+                     */
+                    l = recv(ip->socket, ip->text + ip->text_end, (size_t)l, MSG_PEEK);
+                }
                 else
 #endif
                     l = socket_read(ip->socket, ip->text + ip->text_end, (size_t)l);
@@ -3062,13 +3093,58 @@ get_message (char *buff, size_t *bufflength)
                      */
                     ip->tn_state = TS_READY;
                 }
-                else if (ip->ws_status == WS_PENDING && ip->text_end >= 4)
+                else if (ip->ws_status == WS_PENDING && ip->text_end >= 1)
                 {
-                    /* First bytes arrived — decide protocol. */
-                    if (ip->text[0] == 'G' && ip->text[1] == 'E'
+                    /* First byte(s) arrived — decide protocol.
+                     * 0x16 = TLS ClientHello record type
+                     * "GET " = plain WebSocket upgrade
+                     * anything else = plain telnet
+                     */
+#ifdef USE_TLS
+                    if ((unsigned char)ip->text[0] == 0x16
+                        && tls_available())
+                    {
+                        /* TLS ClientHello detected (first byte 0x16).
+                         * Data was peeked (MSG_PEEK), not consumed,
+                         * so it remains in the kernel buffer for
+                         * OpenSSL to read directly from the socket.
+                         */
+                        ip->text_end = 0;
+
+                        int ret = tls_init_connection(ip);
+                        if (ret >= 0)
+                        {
+                            ip->tls_status = TLS_HANDSHAKING;
+                            /* Stay in WS_PENDING.  After TLS handshake
+                             * completes, we'll read decrypted bytes and
+                             * detect WebSocket vs telnet.
+                             */
+                        }
+                        else
+                        {
+                            /* TLS init failed — consume the peeked data
+                             * and treat as plain connection.
+                             */
+                            ip->text_end = 0;
+                            l = socket_read(ip->socket,
+                                            ip->text, (size_t)MAX_TEXT);
+                            if (l > 0) ip->text_end = l;
+                        }
+                        continue;
+                    }
+                    else
+#endif /* USE_TLS */
+                    if (ip->text_end >= 4
+                     && ip->text[0] == 'G' && ip->text[1] == 'E'
                      && ip->text[2] == 'T' && ip->text[3] == ' ')
                     {
-                        /* WebSocket upgrade request. */
+                        /* WebSocket upgrade request.
+                         * Consume the peeked data from the socket.
+                         */
+                        {
+                            char drain[MAX_TEXT];
+                            recv(ip->socket, drain, (size_t)ip->text_end, 0);
+                        }
                         ip->ws_status = WS_HANDSHAKING;
                         ip->tn_enabled = MY_FALSE;
                         {
@@ -3091,11 +3167,15 @@ get_message (char *buff, size_t *bufflength)
                         }
                         continue;
                     }
-                    else
+                    else if (ip->text_end >= 4)
                     {
-                        /* Not WebSocket — this is a telnet client.
-                         * Transition to normal telnet and call logon().
+                        /* Not TLS, not WebSocket — plain telnet.
+                         * Consume the peeked data from the socket.
                          */
+                        {
+                            char drain[MAX_TEXT];
+                            recv(ip->socket, drain, (size_t)ip->text_end, 0);
+                        }
                         ip->ws_status = WS_INACTIVE;
                         command_giver = ip->ob;
                         current_interactive = ip->ob;
@@ -3963,16 +4043,14 @@ new_player ( object_t *ob, SOCKET_T new_socket
     /* TODO: We could pass the retrieved hostname right to login */
 #endif
 #ifdef USE_WEBSOCKETS
-    /* When WebSocket support is compiled in, defer logon() until we've
-     * read the first bytes from the client.  If they start with "GET ",
-     * this is a WebSocket upgrade; otherwise it's telnet.  Sending the
-     * welcome banner before reading would poison the HTTP handshake.
+    /* Defer logon() until we've read the first bytes from the client.
+     * This allows auto-detection of the connection protocol:
+     *   0x16 -> TLS (then after handshake: WebSocket or telnet)
+     *   "GET " -> plain WebSocket
+     *   anything else -> plain telnet
      */
     if (new_interactive->ws_status == WS_PENDING)
     {
-        /* Don't call logon_object() or print_prompt() yet.
-         * get_message() will handle it after the first read.
-         */
         flush_all_player_mess();
         return;
     }
