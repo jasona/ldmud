@@ -1203,9 +1203,17 @@ tls_init_connection (interactive_t *ip)
     else
     {
         SSL_set_accept_state(session);
-        /* request a client certificate */
-        SSL_set_verify( session, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE
-                      , tls_verify_callback);
+#ifdef USE_WEBSOCKETS
+        if (ip->ws_status != WS_PENDING)
+#endif
+        {
+            /* Request a client certificate for LPC-initiated TLS.
+             * Skip this for auto-detected TLS connections (browsers
+             * and WebSocket clients don't send client certs).
+             */
+            SSL_set_verify( session, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE
+                          , tls_verify_callback);
+        }
     }
     if (keys)
     {
