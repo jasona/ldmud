@@ -10,9 +10,10 @@
 /* --- WebSocket Connection States --- */
 
 #define WS_INACTIVE      0  /* Not a WebSocket connection */
-#define WS_HANDSHAKING   1  /* Parsing HTTP upgrade request */
-#define WS_ACTIVE        2  /* WebSocket framing is active */
-#define WS_CLOSING       3  /* Close handshake in progress */
+#define WS_PENDING       1  /* Waiting for first bytes to detect protocol */
+#define WS_HANDSHAKING   2  /* Parsing HTTP upgrade request */
+#define WS_ACTIVE        3  /* WebSocket framing is active */
+#define WS_CLOSING       4  /* Close handshake in progress */
 
 /* --- WebSocket Frame Opcodes (RFC 6455 Section 5.2) --- */
 

@@ -2390,6 +2390,18 @@ get_message (char *buff, size_t *bufflength)
                 if (ip->ws_status == WS_INACTIVE)
 #endif
                     telnet_neg(ip);
+#ifdef USE_WEBSOCKETS
+                /* WS_PENDING connections are waiting for first bytes;
+                 * don't process them as telnet yet.
+                 */
+                if (ip->ws_status == WS_PENDING)
+                {
+                    FD_SET(ip->socket, &readfds);
+                    if (socket_number(ip->socket) >= nfds)
+                        nfds = socket_number(ip->socket)+1;
+                    continue;
+                }
+#endif
 
                 if (ip->tn_state == TS_READY || ip->tn_state == TS_CHAR_READY)
                 {
@@ -3020,7 +3032,17 @@ get_message (char *buff, size_t *bufflength)
                         remove_interactive(ip->ob, MY_FALSE);
                         continue;
                     }
-                    /* ws_rc == 0: still handshaking, ws_rc == 1: now active */
+                    if (ws_rc == 1)
+                    {
+                        /* Handshake complete. Now call logon(). */
+                        command_giver = ip->ob;
+                        current_interactive = ip->ob;
+                        logon_object(ip->ob, 0);
+                        if (!(ip->ob->flags & O_DESTRUCTED))
+                            print_prompt();
+                        flush_all_player_mess();
+                    }
+                    /* ws_rc == 0: still handshaking */
                     continue;
                 }
                 else if (ip->ws_status == WS_ACTIVE
@@ -3040,26 +3062,60 @@ get_message (char *buff, size_t *bufflength)
                      */
                     ip->tn_state = TS_READY;
                 }
-                else if (ip->ws_status == WS_INACTIVE && ip->text_end >= 4
-                      && ip->text[0] == 'G' && ip->text[1] == 'E'
-                      && ip->text[2] == 'T' && ip->text[3] == ' ')
+                else if (ip->ws_status == WS_PENDING && ip->text_end >= 4)
                 {
-                    /* Auto-detect: first bytes look like HTTP GET.
-                     * Switch to WebSocket handshake mode.
-                     */
-                    ip->ws_status = WS_HANDSHAKING;
-                    ip->tn_enabled = MY_FALSE;
+                    /* First bytes arrived — decide protocol. */
+                    if (ip->text[0] == 'G' && ip->text[1] == 'E'
+                     && ip->text[2] == 'T' && ip->text[3] == ' ')
                     {
-                        int ws_rc = ws_continue_handshake(ip);
-                        if (ws_rc < 0)
+                        /* WebSocket upgrade request. */
+                        ip->ws_status = WS_HANDSHAKING;
+                        ip->tn_enabled = MY_FALSE;
                         {
-                            remove_interactive(ip->ob, MY_FALSE);
-                            continue;
+                            int ws_rc = ws_continue_handshake(ip);
+                            if (ws_rc < 0)
+                            {
+                                remove_interactive(ip->ob, MY_FALSE);
+                                continue;
+                            }
+                            if (ws_rc == 1)
+                            {
+                                /* Handshake complete. Now call logon(). */
+                                command_giver = ip->ob;
+                                current_interactive = ip->ob;
+                                logon_object(ip->ob, 0);
+                                if (!(ip->ob->flags & O_DESTRUCTED))
+                                    print_prompt();
+                                flush_all_player_mess();
+                            }
                         }
+                        continue;
                     }
+                    else
+                    {
+                        /* Not WebSocket — this is a telnet client.
+                         * Transition to normal telnet and call logon().
+                         */
+                        ip->ws_status = WS_INACTIVE;
+                        command_giver = ip->ob;
+                        current_interactive = ip->ob;
+                        logon_object(ip->ob, 0);
+                        if (!(ip->ob->flags & O_DESTRUCTED))
+                            print_prompt();
+                        flush_all_player_mess();
+                        /* Fall through to telnet_neg() to process
+                         * the data we already have in the buffer.
+                         */
+                    }
+                }
+                else if (ip->ws_status == WS_PENDING)
+                {
+                    /* Less than 4 bytes received, wait for more. */
                     continue;
                 }
-                else
+
+                if (ip->ws_status != WS_INACTIVE)
+                    continue;
 #endif /* USE_WEBSOCKETS */
                 telnet_neg(ip);
             } /* if (cmdgiver socket ready) */
@@ -3785,7 +3841,7 @@ new_player ( object_t *ob, SOCKET_T new_socket
     new_interactive->tls_cb = NULL;
 #endif
 #ifdef USE_WEBSOCKETS
-    new_interactive->ws_status = WS_INACTIVE;
+    new_interactive->ws_status = WS_PENDING;
     ws_init_data(&new_interactive->ws_data);
 #endif
     new_interactive->input_handler = NULL;
@@ -3906,6 +3962,21 @@ new_player ( object_t *ob, SOCKET_T new_socket
     (void) lookup_ip_entry(new_interactive->addr.sin4or6_addr, MY_TRUE);
     /* TODO: We could pass the retrieved hostname right to login */
 #endif
+#ifdef USE_WEBSOCKETS
+    /* When WebSocket support is compiled in, defer logon() until we've
+     * read the first bytes from the client.  If they start with "GET ",
+     * this is a WebSocket upgrade; otherwise it's telnet.  Sending the
+     * welcome banner before reading would poison the HTTP handshake.
+     */
+    if (new_interactive->ws_status == WS_PENDING)
+    {
+        /* Don't call logon_object() or print_prompt() yet.
+         * get_message() will handle it after the first read.
+         */
+        flush_all_player_mess();
+        return;
+    }
+#endif /* USE_WEBSOCKETS */
 #ifdef USE_TLS
     /* If we're using secure connections and the connect() triggered
      * a handshake which is still going on, we call logon() as
